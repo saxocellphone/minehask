@@ -1,0 +1,1 @@
+# Minehask - minesweeper for haskell
