@@ -26,7 +26,7 @@ instance Show Square where
   show (Square _ Triggered) = "x"
   show (Square _ LostMine) = "x"
   show (Square _ Flagged) = "f"
-  show (NumberedSquare num) = show num
+  show (NumberedSquare num) = if num > 0 then show num else " "
 
 infixl 6 |+|
 Pos a b |+| Pos c d = Pos (a+c) (b+d)
@@ -59,7 +59,7 @@ readInput = do
     putStrLn "Make a move: (Format Int Int)"
     getLine
   let [initX, initY] = splitOn " " pos
-  return $ Pos (read initX) (read initY)
+  return $ Pos (read initX - 1) (read initY - 1)
 
 --------------
 --Impure Stuff
@@ -189,7 +189,11 @@ posToIndex :: Pos -> Int -> Int -> Int
 posToIndex (Pos x y) w h = y * w + x
 
 printBoard :: Board -> IO ()
-printBoard = mapM_ print
+printBoard b = do
+  let width = length $ head b
+  putStrLn $ replicate (width * 2) '-'
+  mapM_ (putStrLn . unwords . fmap show) b
+  putStrLn $ replicate (length b * 2) '-'
 
 markBoard :: Board -> Board
 markBoard b =
