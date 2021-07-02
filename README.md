@@ -50,5 +50,6 @@ x 2 1 2 1 1 1 1 1
 ```
 ## TODOs
 - Safe parse input
-- row/col numbers
+- Row/Col numbers
+- Flags
 - GUI

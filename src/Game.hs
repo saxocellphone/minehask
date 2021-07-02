@@ -9,8 +9,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 
 data Square = Square Bool SquareStatus | NumberedSquare Int
-data SquareStatus = Untouched | Triggered | LostMine | Flagged deriving (Show)
-data Pos = Pos Int Int deriving (Eq, Show)
+data SquareStatus = Untouched | LostMine | Flagged
+data Pos = Pos Int Int deriving (Eq)
 data Env = Env {
   getInitPos :: Pos,
   getWidth :: Int,
@@ -23,7 +23,6 @@ type Game a = ReaderT Env IO a
 
 instance Show Square where
   show (Square _ Untouched) = "."
-  show (Square _ Triggered) = "x"
   show (Square _ LostMine) = "x"
   show (Square _ Flagged) = "f"
   show (NumberedSquare num) = if num > 0 then show num else " "
@@ -69,7 +68,7 @@ createRandomBoard = do
   width <- asks getWidth
   height <- asks getHeight
   randomLayout <- randMines
-  let field = take height $ chunksOf width $ genField randomLayout (width * height)
+  let field = take height $ chunksOf width $ genField randomLayout $ width * height
   lift $ return field
 
 randMines :: Game [Int]
@@ -78,7 +77,7 @@ randMines = do
   height <- asks getHeight
   pos <- asks getInitPos
   n <- asks getNumMines
-  randomSample n $ delete (posToIndex pos width height) [0..(width*height-1)]
+  randomSample n $ delete (posToIndex pos width height) [0..width*height-1]
 
 randomSample :: Int -> [a] -> Game [a]
 randomSample 0 list = pure []
@@ -86,7 +85,7 @@ randomSample k list = do
   i <- getRandomR (0, length list - 1)
   let (a, xs) = splitAt i list
   l <- if not (null xs) then randomSample (k-1) (a ++ tail xs) else lift $ return []
-  pure (if not (null xs) then head xs : l else l)
+  pure $ if not (null xs) then head xs : l else l
 
 ----------------
 --Pure Functions
@@ -123,17 +122,15 @@ getExpansions b pos =
     Just _ -> expansions
   where
     isZero = getNearMines b pos == 0
-    ds = if isZero 
-          then
+    ds = if isZero then
             [Pos a b | a <- [-1, 0, 1], b <- [-1, 0, 1]]
           else
             [Pos a b | (a,b) <- [(-1, 0), (0, -1), (1, 0), (0, 1), (0, 0)]]
     dirs = (|+|) <$> ds <*> [pos]
     bounded_dirs = filter (\(Pos x y) -> x >= 0 && y >= 0) dirs
-    filtered_dirs = if isZero
-                       then 
+    filtered_dirs = if isZero then 
                       bounded_dirs
-                       else
+                    else
                       filter (\n -> n == pos || getNearMines b n == 0) bounded_dirs
     expansions = foldl (\acc p -> case getSquare b p of
                         Just s@(Square False Untouched) -> p : acc
@@ -144,10 +141,10 @@ expand b p = do
   let expansions = concat $ mapMaybe (expand' b) p
   let newboard = foldr (\(ri, row) r ->
                   foldr (\(ci, s) c ->
-                    if Pos ri ci `elem` expansions
-                      then
-                        NumberedSquare (getNearMines b $ Pos ri ci) : c
-                    else s : c
+                    if Pos ri ci `elem` expansions then
+                      NumberedSquare (getNearMines b $ Pos ri ci) : c
+                    else 
+                      s : c
                   ) [] (zip [0..] row) : r
                 ) [] (zip [0..] b)
   let removeCur = filter (`notElem` p) expansions
@@ -160,16 +157,18 @@ expand b p = do
     Nothing
   where
     expand' :: Board -> Pos -> Maybe [Pos]
-    expand' b' p' = case getSquare b' p' of
-                      Nothing -> Nothing
-                      Just (Square True _ ) -> Nothing
-                      _ -> Just (getExpansions b' p')
+    expand' b' p' =
+      case getSquare b' p' of
+        Nothing -> Nothing
+        Just (Square True _ ) -> Nothing
+        _ -> Just (getExpansions b' p')
 
     lost :: Board -> [Pos] -> Bool
     lost _ [] = False
-    lost b' (x:xs) = case getSquare b' x of
-                      Just (Square True _) -> True
-                      _ -> lost b' xs
+    lost b' (x:xs) =
+      case getSquare b' x of
+        Just (Square True _) -> True
+        _ -> lost b' xs
 
 checkWin :: Board -> Bool
 checkWin b = 
@@ -208,8 +207,8 @@ markBoard b =
 
 parseBoard :: [Char] -> Board
 parseBoard text = 
-  (fmap . fmap) charToSquare (chunksOf 5 text)
-    where 
-      charToSquare c
-        | c == '*' = Square True Untouched
-        | otherwise = Square False Untouched
+  fmap charToSquare <$> chunksOf 5 text
+  where 
+    charToSquare c
+      | c == '*' = Square True Untouched
+      | otherwise = Square False Untouched
