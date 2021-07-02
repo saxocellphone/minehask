@@ -34,10 +34,10 @@ Pos a b |+| Pos c d = Pos (a+c) (b+d)
 -- Game Control
 ---------------
 
-play :: IO ()
-play = do
+play :: Int -> Int -> Int -> IO ()
+play w h numMines = do
   initPos <- readInput
-  board <- runReaderT createRandomBoard $ Env initPos 9 9 10
+  board <- runReaderT createRandomBoard $ Env initPos w h numMines
   play' board initPos
 
 play' :: Board -> Pos -> IO ()
