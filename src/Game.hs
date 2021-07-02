@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Game where
 
 import Data.List
@@ -33,7 +34,6 @@ Pos a b |+| Pos c d = Pos (a+c) (b+d)
 ---------------
 -- Game Control
 ---------------
-
 play :: Int -> Int -> Int -> IO ()
 play w h numMines = do
   initPos <- readInput
@@ -44,11 +44,14 @@ play' :: Board -> Pos -> IO ()
 play' board initPos = case expand board [initPos] of
     Just nextBoard -> do 
       printBoard nextBoard
-      nextPos <- readInput
-      play' nextBoard nextPos
+      if checkWin nextBoard then 
+        print "You won!"
+      else do
+        nextPos <- readInput
+        play' nextBoard nextPos
     Nothing -> do
       print "You Lost :("
-      printEndBoard $ markBoard board
+      printBoard $ markBoard board
 
 readInput :: IO Pos
 readInput = do
@@ -56,32 +59,26 @@ readInput = do
     putStrLn "Make a move: (Format Int Int)"
     getLine
   let [initX, initY] = splitOn " " pos
-  let intX = read initX :: Int
-  let intY = read initY :: Int
-  return $ Pos intX intY
+  return $ Pos (read initX) (read initY)
 
 --------------
 --Impure Stuff
 --------------
-
 createRandomBoard :: Game Board
 createRandomBoard = do
-  env <- ask
-  let width = getWidth env
-  let height = getHeight env
+  width <- asks getWidth
+  height <- asks getHeight
   randomLayout <- randMines
   let field = take height $ chunksOf width $ genField randomLayout (width * height)
   lift $ return field
 
 randMines :: Game [Int]
 randMines = do
-  env <- ask
-  let numSquares = getWidth env * getHeight env
-  let width = getWidth env
-  let height = getHeight env
-  let pos = getInitPos env
-  let n = getNumMines env
-  randomSample n $ delete (posToIndex pos width height) [0..(numSquares-1)]
+  width <- asks getWidth
+  height <- asks getHeight
+  pos <- asks getInitPos
+  n <- asks getNumMines
+  randomSample n $ delete (posToIndex pos width height) [0..(width*height-1)]
 
 randomSample :: Int -> [a] -> Game [a]
 randomSample 0 list = pure []
@@ -131,16 +128,13 @@ getExpansions b pos =
             [Pos a b | a <- [-1, 0, 1], b <- [-1, 0, 1]]
           else
             [Pos a b | (a,b) <- [(-1, 0), (0, -1), (1, 0), (0, 1), (0, 0)]]
-
     dirs = (|+|) <$> ds <*> [pos]
     bounded_dirs = filter (\(Pos x y) -> x >= 0 && y >= 0) dirs
-
-    filtered_dirs = if not isZero 
+    filtered_dirs = if isZero
                        then 
-                      filter (\n -> n == pos || getNearMines b n == 0) bounded_dirs
-                       else
                       bounded_dirs
-
+                       else
+                      filter (\n -> n == pos || getNearMines b n == 0) bounded_dirs
     expansions = foldl (\acc p -> case getSquare b p of
                         Just s@(Square False Untouched) -> p : acc
                         _ -> acc) [] filtered_dirs
@@ -177,10 +171,17 @@ expand b p = do
                       Just (Square True _) -> True
                       _ -> lost b' xs
 
+checkWin :: Board -> Bool
+checkWin b = 
+  all (==True) $ 
+  fmap (all (==True) . 
+    fmap (\case
+            Square False Untouched -> False
+            _ -> True)) b
+
 -----------
 --Utilities
 -----------
-
 indexToPos :: Int -> Int -> Int -> Pos
 indexToPos index w h = Pos (mod index w) (index `div` w)
 
@@ -189,9 +190,6 @@ posToIndex (Pos x y) w h = y * w + x
 
 printBoard :: Board -> IO ()
 printBoard = mapM_ print
-
-printEndBoard :: Board -> IO()
-printEndBoard = mapM_ print
 
 markBoard :: Board -> Board
 markBoard b =
@@ -211,19 +209,3 @@ parseBoard text =
       charToSquare c
         | c == '*' = Square True Untouched
         | otherwise = Square False Untouched
-printIOBoard :: IO Board -> IO ()
-printIOBoard b = b >>= printBoard
-
-----------------
--- TESTING STUFF
-----------------
-testBoard = [
-              '.','.','.','.','.',
-              '*','*','.','.','.',
-              '.','.','.','.','.',
-              '.','.','.','.','.',
-              '.','.','.','.','.'
-            ]
-
-parsedTestBoard = parseBoard testBoard
-
