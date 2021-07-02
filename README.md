@@ -1,4 +1,4 @@
-# Minehask - minesweeper for haskell
+# Minehask - CLI Minesweeper written in haskell
 
 ## To play
 ```
